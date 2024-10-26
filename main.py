@@ -28,12 +28,13 @@ def generate_blog_section(blog_topic, blog_type, blog_tone, blog_language):
     convo = st.session_state['convo']
     current_part = st.session_state['current_part']
     
+    # Define natural language prompts for each part
     if current_part == 'intro':
-    prompt = f"""
-    Imagine you're an experienced {blog_language} SEO specialist and a seasoned {blog_type} blog writer. Your goal is to craft a warm, welcoming, and highly engaging **Introduction** for a blog post about: {blog_topic}.
-    Write in a friendly, relatable tone that draws the reader in right from the start. Use clear, simple language, and weave in valuable insights to make the reader feel they’re getting expert advice without overwhelming jargon. Avoid anything that sounds mechanical or overly formal—aim for an easy flow that feels human and conversational. Begin with an engaging hook, then introduce the main ideas naturally as if speaking to a friend.
-    """
-
+        prompt = f"""
+        You are a creative {blog_language} SEO expert and {blog_type} blog writer.
+        Please write a detailed and engaging **Introduction** for a blog post on the topic: {blog_topic}.
+        Ensure the introduction hooks the reader with valuable insights and introduces the topic in a conversational and human-like tone.
+        """
     elif current_part == 'main_content_1':
         prompt = f"""
         Let's start with the **first part of the main content** of the blog post on "{blog_topic}".
