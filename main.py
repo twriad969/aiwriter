@@ -1,11 +1,48 @@
 import os
 import streamlit as st
 import google.generativeai as genai
+import json
+from datetime import datetime, timedelta
+
+# File to store usage data (ideally use a database in production)
+USAGE_FILE = "usage_data.json"
 
 # Initialize the AI model configuration
 def configure_gemini():
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
     return genai.GenerativeModel(model_name="gemini-1.5-flash-latest", generation_config={"max_output_tokens": 2048})
+
+# Load or create usage data file
+def load_usage_data():
+    if not os.path.exists(USAGE_FILE):
+        with open(USAGE_FILE, 'w') as f:
+            json.dump({}, f)
+    with open(USAGE_FILE, 'r') as f:
+        return json.load(f)
+
+# Save usage data to file
+def save_usage_data(data):
+    with open(USAGE_FILE, 'w') as f:
+        json.dump(data, f)
+
+# Check and update usage limits
+def check_usage_limit(email):
+    data = load_usage_data()
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    user_data = data.get(email, {"date": today_str, "count": 0})
+
+    # Reset count if it's a new day
+    if user_data["date"] != today_str:
+        user_data["date"] = today_str
+        user_data["count"] = 0
+
+    if user_data["count"] >= 1:
+        return False  # User has reached the daily limit
+    else:
+        user_data["count"] += 1
+        data[email] = user_data
+        save_usage_data(data)
+        return True
 
 # Function to initialize the conversation and session state
 def initialize_state():
@@ -101,78 +138,85 @@ def main():
 
     # Title and description
     st.title("Gemwriter - 7-Part AI Blog Post Generator")
-    st.markdown("Create a human-friendly, SEO-optimized blog post in 7 parts (Intro, Main Content in 3 Parts, Table, FAQs, Conclusion) with natural, easy-to-read transitions. proudly open source via ronok")
+    st.markdown("Create a human-friendly, SEO-optimized blog post in 7 parts (Intro, Main Content in 3 Parts, Table, FAQs, Conclusion). Proudly open source via ronok")
 
-    # Blog topic input
-    blog_topic = st.text_input("Enter the main topic of your blog:")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        blog_type = st.selectbox('Blog Post Type', ['General', 'How-to Guides', 'Listicles', 'Cheat Sheets', 'Job Posts'])
-    
-    with col2:
-        blog_tone = st.selectbox('Blog Tone', ['Professional', 'Casual', 'Informative'])
-    
-    with col3:
-        blog_language = st.selectbox('Language', ['English', 'Spanish', 'Chinese', 'Hindi', 'Vietnamese', 'Customize'])
-        if blog_language == 'Customize':
-            blog_language = st.text_input("Enter your custom language:")
+    # Email input for access control
+    email = st.text_input("Enter your email to get started:")
+    if email:
+        if not check_usage_limit(email):
+            st.warning("You've reached your daily free article limit. Please consider upgrading to a premium plan for unlimited access.")
+            return
 
-    # Start the blog generation
-    if st.button('Start Blog Generation'):
-        if blog_topic:
-            initialize_state()
-            st.success('Blog generation started! Let\'s begin with the introduction.')
-
-    # Generate the blog sections step by step
-    if 'convo' in st.session_state and st.session_state['current_part'] != 'complete':
-        current_part = st.session_state['current_part']
+        # Blog topic input
+        blog_topic = st.text_input("Enter the main topic of your blog:")
         
-        # Dynamically change the button label based on the section being generated
-        if current_part == 'intro':
-            if st.button('Generate Blog Introduction'):
-                intro = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Introduction")
-                st.write(intro)
-        elif current_part == 'main_content_1':
-            if st.button('Generate Main Content (Part 1)'):
-                main_content_1 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Main Content (Part 1)")
-                st.write(main_content_1)
-        elif current_part == 'main_content_2':
-            if st.button('Generate Main Content (Part 2)'):
-                main_content_2 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Main Content (Part 2)")
-                st.write(main_content_2)
-        elif current_part == 'main_content_3':
-            if st.button('Generate Main Content (Part 3)'):
-                main_content_3 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Main Content (Part 3)")
-                st.write(main_content_3)
-        elif current_part == 'table':
-            if st.button('Generate Table'):
-                table = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Table")
-                st.write(table)
-        elif current_part == 'faqs':
-            if st.button('Generate FAQs'):
-                faqs = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Frequently Asked Questions (FAQs)")
-                st.write(faqs)
-        elif current_part == 'conclusion':
-            if st.button('Generate Conclusion'):
-                conclusion = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
-                st.subheader("Conclusion")
-                st.write(conclusion)
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            blog_type = st.selectbox('Blog Post Type', ['General', 'How-to Guides', 'Listicles', 'Cheat Sheets', 'Job Posts'])
+        
+        with col2:
+            blog_tone = st.selectbox('Blog Tone', ['Professional', 'Casual', 'Informative'])
+        
+        with col3:
+            blog_language = st.selectbox('Language', ['English', 'Spanish', 'Chinese', 'Hindi', 'Vietnamese', 'Customize'])
+            if blog_language == 'Customize':
+                blog_language = st.text_input("Enter your custom language:")
 
-    # Show the complete blog post when all parts are done
-    if st.session_state.get('current_part') == 'complete':
-        st.success("All parts of the blog have been generated!")
-        if st.button('View Complete Blog'):
-            st.subheader("Complete Blog Post")
-            complete_blog = "\n\n".join(st.session_state['blog_parts'].values())
-            st.write(complete_blog)
+        # Start the blog generation
+        if st.button('Start Blog Generation'):
+            if blog_topic:
+                initialize_state()
+                st.success('Blog generation started! Let\'s begin with the introduction.')
+
+        # Generate the blog sections step by step
+        if 'convo' in st.session_state and st.session_state['current_part'] != 'complete':
+            current_part = st.session_state['current_part']
+            
+            # Dynamically change the button label based on the section being generated
+            if current_part == 'intro':
+                if st.button('Generate Blog Introduction'):
+                    intro = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Introduction")
+                    st.write(intro)
+            elif current_part == 'main_content_1':
+                if st.button('Generate Main Content (Part 1)'):
+                    main_content_1 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Main Content (Part 1)")
+                    st.write(main_content_1)
+            elif current_part == 'main_content_2':
+                if st.button('Generate Main Content (Part 2)'):
+                    main_content_2 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Main Content (Part 2)")
+                    st.write(main_content_2)
+            elif current_part == 'main_content_3':
+                if st.button('Generate Main Content (Part 3)'):
+                    main_content_3 = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Main Content (Part 3)")
+                    st.write(main_content_3)
+            elif current_part == 'table':
+                if st.button('Generate Table'):
+                    table = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Table")
+                    st.write(table)
+            elif current_part == 'faqs':
+                if st.button('Generate FAQs'):
+                    faqs = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Frequently Asked Questions (FAQs)")
+                    st.write(faqs)
+            elif current_part == 'conclusion':
+                if st.button('Generate Conclusion'):
+                    conclusion = generate_blog_section(blog_topic, blog_type, blog_tone, blog_language)
+                    st.subheader("Conclusion")
+                    st.write(conclusion)
+
+        # Show the complete blog post when all parts are done
+        if st.session_state.get('current_part') == 'complete':
+            st.success("All parts of the blog have been generated!")
+            if st.button('View Complete Blog'):
+                st.subheader("Complete Blog Post")
+                complete_blog = "\n\n".join(st.session_state['blog_parts'].values())
+                st.write(complete_blog)
 
 
 if __name__ == "__main__":
