@@ -5,7 +5,7 @@ import google.generativeai as genai
 # Initialize the AI model configuration
 def configure_gemini():
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-    return genai.GenerativeModel(model_name="gemini-1.5-flash-latest", generation_config={"max_output_tokens": 2048})
+    return genai.GenerativeModel(model_name="gemini-1.5-flash-latest", generation_config={"max_output_tokens": 3048})
 
 # Function to initialize the conversation and session state
 def initialize_state():
